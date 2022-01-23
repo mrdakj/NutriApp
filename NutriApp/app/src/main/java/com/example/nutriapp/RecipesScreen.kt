@@ -153,7 +153,7 @@ fun RecipeCard(recipe: Recipe, recipesViewModel: RecipesViewModel, nav: NavContr
                                   rememberImagePainter(recipe.imageUri),
                     contentDescription = "recipe image"
                  )
-                Text(text = recipe.name + " " + recipe.id)
+                Text(text = recipe.name)
             }
         }
     }

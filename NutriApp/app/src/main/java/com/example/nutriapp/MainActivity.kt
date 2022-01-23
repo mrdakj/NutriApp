@@ -2,6 +2,7 @@ package com.example.nutriapp
 
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -19,6 +20,8 @@ class MainActivity : ComponentActivity() {
     @ExperimentalPermissionsApi
     @ExperimentalFoundationApi
     override fun onCreate(savedInstanceState: Bundle?) {
+        //window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
         super.onCreate(savedInstanceState)
         val ingredientsViewModel by viewModels<IngredientsViewModel> {
             IngredientViewModelFactory((this.applicationContext as NutriApplication).repository)

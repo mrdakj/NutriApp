@@ -174,7 +174,7 @@ fun IngredientCard(ingredient: Ingredient, ingredientsViewModel: IngredientsView
                                   rememberImagePainter(ingredient.imageUri),
                     contentDescription = "ingredient image"
                 )
-                Text(text = ingredient.name + " " + ingredient.id)
+                Text(text = ingredient.name)
             }
         }
     }

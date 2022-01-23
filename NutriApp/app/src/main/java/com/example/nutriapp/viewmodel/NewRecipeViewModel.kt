@@ -1,5 +1,6 @@
 package com.example.nutriapp.viewmodel
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,7 +23,6 @@ class NewRecipeViewModel() : ImageViewModel()  {
     var selectedTabIndex by  mutableStateOf(0)
     val recipeSteps = mutableStateOf("")
     var showRecipeStepsInputText = mutableStateOf(false)
-
 
     fun selectedTabIngredients(): Boolean {
         return selectedTabIndex == 0

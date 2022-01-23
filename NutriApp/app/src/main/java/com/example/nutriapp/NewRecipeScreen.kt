@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.graphics.Paint
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,10 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.focusModifier
+import androidx.compose.ui.focus.focusOrder
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -42,6 +48,7 @@ import com.example.nutriapp.util.*
 import com.example.nutriapp.viewmodel.IngredientsViewModel
 import com.example.nutriapp.viewmodel.NewRecipeViewModel
 import com.example.nutriapp.viewmodel.RecipesViewModel
+import kotlinx.coroutines.launch
 
 @ExperimentalFoundationApi
 @Composable
@@ -73,12 +80,51 @@ fun NewRecipeScreen(
                 RecipeCard(newRecipeViewModel, ingredientsViewModel, nav)
             }
 
-            Box(Modifier.align(Alignment.CenterHorizontally))
-            {
-                DoneButton {
-                    recipesViewModel.insert(
-                        newRecipeViewModel.getRecipe(updateRecipeId!!),
-                        newRecipeViewModel.getIngredientsIdsAndQuantities())
+            if (!newRecipeViewModel.showRecipeStepsInputText.value) {
+                Box(Modifier.align(Alignment.CenterHorizontally))
+                {
+                    DoneButton {
+                        recipesViewModel.insert(
+                            newRecipeViewModel.getRecipe(updateRecipeId!!),
+                            newRecipeViewModel.getIngredientsIdsAndQuantities()
+                        )
+                    }
+                }
+            }
+            else {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    IconButton(
+                        onClick = {
+                            newRecipeViewModel.showRecipeStepsInputText.value = false
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Done,
+                            contentDescription = "",
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .size(24.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    IconButton(
+                        onClick = {
+                            newRecipeViewModel.recipeSteps.value = ""
+                            newRecipeViewModel.showRecipeStepsInputText.value = false
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "",
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -168,7 +214,7 @@ fun ClickableIngredientCard(ingredient: Ingredient, newRecipeViewModel: NewRecip
                 painter = if (ingredient.imageUri.isEmpty()) painterResource(R.drawable.image) else rememberImagePainter(ingredient.imageUri),
                 contentDescription = "ingredient image",
             )
-            Text(text = ingredient.name + " " + ingredient.id)
+            Text(text = ingredient.name)
         }
     }
 }
@@ -235,19 +281,8 @@ fun StepsText(newRecipeViewModel: NewRecipeViewModel)
             ) {
                 newRecipeViewModel.showRecipeStepsInputText.value = true
             }
-            .padding(10.dp),
+            .padding(10.dp)
     )
-}
-
-@Composable
-fun ShowStepsField(newRecipeViewModel: NewRecipeViewModel)
-{
-    if (newRecipeViewModel.showRecipeStepsInputText.value) {
-        RecipeTextField(newRecipeViewModel)
-    }
-    else {
-        StepsText(newRecipeViewModel)
-    }
 }
 
 @Composable
@@ -287,27 +322,6 @@ fun ShowIngredientsWithSearch(
     }
 }
 
-@Composable
-fun StepsOkCancelButtons(newRecipeViewModel: NewRecipeViewModel)
-{
-    if (newRecipeViewModel.showRecipeStepsInputText.value) {
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .background(Cream)
-            .padding(5.dp)) {
-            OkCancelButtons(
-                okFun = {
-                    newRecipeViewModel.showRecipeStepsInputText.value = false
-                },
-                cancelFun = {
-                    newRecipeViewModel.recipeSteps.value = ""
-                    newRecipeViewModel.showRecipeStepsInputText.value = false
-                }
-            )
-        }
-    }
-}
-
 @ExperimentalFoundationApi
 @Composable
 fun RecipeCardDefault(
@@ -315,49 +329,56 @@ fun RecipeCardDefault(
     ingredientsViewModel: IngredientsViewModel,
     nav: NavController)
 {
-    LazyColumn(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.background(Cream)
-    ) {
-        stickyHeader {
-            Column(modifier = Modifier
-                .fillMaxWidth()
-                .background(Cream)
-            ) {
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .defaultMinSize(minHeight = 75.dp)) {
-                    Box(Modifier.align(Alignment.Center)) {
-                        ClickableNameField(newRecipeViewModel.recipeName, newRecipeViewModel.showInputText)
+    if (!newRecipeViewModel.showRecipeStepsInputText.value) {
+        LazyColumn(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.background(Cream)
+        ) {
+            stickyHeader {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Cream)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 75.dp)
+                    ) {
+                        Box(Modifier.align(Alignment.Center)) {
+                            ClickableNameField(
+                                newRecipeViewModel.recipeName,
+                                newRecipeViewModel.showInputText
+                            )
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Box(Modifier.align(Alignment.Center)) {
+                            RecipeImage(newRecipeViewModel, nav)
+                        }
+                    }
+
+                    Tabs(newRecipeViewModel)
+
+                    if (newRecipeViewModel.selectedTabIngredients()) {
+                        ShowIngredientsWithSearch(newRecipeViewModel, ingredientsViewModel)
                     }
                 }
+            }
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.align(Alignment.Center)) {
-                        RecipeImage(newRecipeViewModel, nav)
-                    }
-                }
-
-                Tabs(newRecipeViewModel)
-
+            items(1) {
                 if (newRecipeViewModel.selectedTabIngredients()) {
-                    ShowIngredientsWithSearch(newRecipeViewModel, ingredientsViewModel)
+                    ShowIngredientsWithQuantities(newRecipeViewModel)
+                } else {
+                    StepsText(newRecipeViewModel)
                 }
-                else {
-                    StepsOkCancelButtons(newRecipeViewModel)
-                }
-            }
-        }
-
-        items(1) {
-            if (newRecipeViewModel.selectedTabIngredients()) {
-                ShowIngredientsWithQuantities(newRecipeViewModel)
-            }
-            else {
-                ShowStepsField(newRecipeViewModel)
-            }
-        } // items end
-    } // lazy list end
+            } // items end
+        } // lazy list end
+    }
+    else {
+        RecipeTextField(newRecipeViewModel)
+    }
 }
 
 @ExperimentalFoundationApi
@@ -367,63 +388,74 @@ fun RecipeCardLandscape(
     ingredientsViewModel: IngredientsViewModel,
     nav: NavController)
 {
-    Row(modifier = Modifier
-        .fillMaxSize()
-        .background(Cream)) {
-        Box(modifier = Modifier.weight(1f)) {
-            LazyColumn(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.background(Cream)
-            ) {
-                stickyHeader {
-                    Column(modifier = Modifier
-                        .background(Cream)
-                        .fillMaxWidth()) {
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 75.dp)) {
-                            Box(modifier = Modifier.align(Alignment.Center)) {
-                                ClickableNameField(newRecipeViewModel.recipeName, newRecipeViewModel.showInputText)
+    if (!newRecipeViewModel.showRecipeStepsInputText.value) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Cream)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.background(Cream)
+                ) {
+                    stickyHeader {
+                        Column(
+                            modifier = Modifier
+                                .background(Cream)
+                                .fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 75.dp)
+                            ) {
+                                Box(modifier = Modifier.align(Alignment.Center)) {
+                                    ClickableNameField(
+                                        newRecipeViewModel.recipeName,
+                                        newRecipeViewModel.showInputText
+                                    )
+                                }
+                            }
+
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Box(modifier = Modifier.align(Alignment.Center)) {
+                                    RecipeImage(newRecipeViewModel, nav)
+                                }
                             }
                         }
+                    }
 
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.align(Alignment.Center)) {
-                                RecipeImage(newRecipeViewModel, nav)
+                    items(1) {
+                        ShowIngredientsWithQuantities(newRecipeViewModel)
+                    }
+                } // lazy column end
+            } // Box end
+
+            Box(modifier = Modifier.weight(1f)) {
+                Column {
+                    Tabs(newRecipeViewModel)
+
+                    if (newRecipeViewModel.selectedTabIngredients()) {
+                        ShowIngredientsWithSearch(newRecipeViewModel, ingredientsViewModel)
+                    }
+                    else {
+                        LazyColumn(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.background(Cream)
+                        ) {
+                            items(1) {
+                                StepsText(newRecipeViewModel)
                             }
                         }
                     }
                 }
-
-                items(1) {
-                    ShowIngredientsWithQuantities(newRecipeViewModel)
-                }
-            } // lazy column end
-        } // Box end
-
-        Box(modifier = Modifier.weight(1f)) {
-            Column {
-                Tabs(newRecipeViewModel)
-
-                if (newRecipeViewModel.selectedTabIngredients()) {
-                    ShowIngredientsWithSearch(newRecipeViewModel, ingredientsViewModel)
-                }
-                else {
-                    LazyColumn(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.background(Cream)) {
-                        stickyHeader {
-                            StepsOkCancelButtons(newRecipeViewModel)
-                        }
-
-                        items(1) {
-                            ShowStepsField(newRecipeViewModel)
-                        }
-                    } // lazy column
-                }
-            } // Column end
-        } // Box end
-    } // Row end
+            }
+        } // Row end
+    }
+    else {
+        RecipeTextField(newRecipeViewModel)
+    }
 }
 
 @ExperimentalFoundationApi
@@ -464,11 +496,9 @@ fun RecipeCard(
 @Composable
 fun RecipeTextField(newRecipeViewModel: NewRecipeViewModel) {
     TextField(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(15.dp),
+        modifier = Modifier.fillMaxWidth(),
         value = newRecipeViewModel.recipeSteps.value,
-        onValueChange = { newRecipeViewModel.recipeSteps.value = it }
+        onValueChange = { newRecipeViewModel.recipeSteps.value = it },
     )
 }
 
