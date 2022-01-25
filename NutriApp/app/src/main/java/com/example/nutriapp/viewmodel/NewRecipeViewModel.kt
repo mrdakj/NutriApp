@@ -3,7 +3,9 @@ package com.example.nutriapp.viewmodel
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
 import com.example.nutriapp.db.Ingredient
 import com.example.nutriapp.db.Recipe
 import com.example.nutriapp.db.RecipeIngredientDAO
@@ -23,6 +25,11 @@ class NewRecipeViewModel() : ImageViewModel()  {
     var selectedTabIndex by  mutableStateOf(0)
     val recipeSteps = mutableStateOf("")
     var showRecipeStepsInputText = mutableStateOf(false)
+    var searchBoxClicked = mutableStateOf(false)
+
+    var grabFocus = mutableStateOf(false)
+    val focusRequester = mutableStateOf(FocusRequester())
+
 
     fun selectedTabIngredients(): Boolean {
         return selectedTabIndex == 0
@@ -55,7 +62,7 @@ class NewRecipeViewModel() : ImageViewModel()  {
     }
 
 
-    fun onNameChanged(newName: String){
-        ingredientName.value = newName
+    fun isIngredientSelected(): Boolean {
+        return selectedIngredientId.value != (-1).toLong()
     }
 }

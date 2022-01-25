@@ -237,6 +237,7 @@ fun SearchView(state: MutableState<String>) {
             onDone = {
                 focusManager.clearFocus()
             }),
+
         leadingIcon = {
             Icon(
                 Icons.Default.Search,

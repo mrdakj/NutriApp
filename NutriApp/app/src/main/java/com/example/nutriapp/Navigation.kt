@@ -1,6 +1,7 @@
 package com.example.nutriapp
 
 import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.*
 import androidx.compose.runtime.Composable
 import com.example.nutriapp.viewmodel.IngredientsViewModel
@@ -11,6 +12,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import androidx.navigation.NavType
 import androidx.navigation.compose.navArgument
 import com.example.nutriapp.viewmodel.RecipesViewModel
+import java.security.AccessController
 
 @ExperimentalPermissionsApi
 @ExperimentalFoundationApi

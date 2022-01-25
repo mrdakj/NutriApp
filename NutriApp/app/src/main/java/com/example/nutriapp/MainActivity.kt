@@ -20,8 +20,6 @@ class MainActivity : ComponentActivity() {
     @ExperimentalPermissionsApi
     @ExperimentalFoundationApi
     override fun onCreate(savedInstanceState: Bundle?) {
-        //window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-
         super.onCreate(savedInstanceState)
         val ingredientsViewModel by viewModels<IngredientsViewModel> {
             IngredientViewModelFactory((this.applicationContext as NutriApplication).repository)

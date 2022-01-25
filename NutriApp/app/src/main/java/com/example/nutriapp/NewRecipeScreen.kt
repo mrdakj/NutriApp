@@ -1,7 +1,12 @@
 package com.example.nutriapp
 
+import android.annotation.SuppressLint
+import android.app.PendingIntent.getActivity
+import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Paint
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
@@ -14,16 +19,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.onActive
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusState
-import androidx.compose.ui.focus.focusModifier
-import androidx.compose.ui.focus.focusOrder
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -31,6 +34,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -38,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberImagePainter
@@ -48,7 +54,10 @@ import com.example.nutriapp.util.*
 import com.example.nutriapp.viewmodel.IngredientsViewModel
 import com.example.nutriapp.viewmodel.NewRecipeViewModel
 import com.example.nutriapp.viewmodel.RecipesViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.security.AccessController.getContext
+
 
 @ExperimentalFoundationApi
 @Composable
@@ -81,13 +90,15 @@ fun NewRecipeScreen(
             }
 
             if (!newRecipeViewModel.showRecipeStepsInputText.value) {
-                Box(Modifier.align(Alignment.CenterHorizontally))
-                {
-                    DoneButton {
-                        recipesViewModel.insert(
-                            newRecipeViewModel.getRecipe(updateRecipeId!!),
-                            newRecipeViewModel.getIngredientsIdsAndQuantities()
-                        )
+                if (!newRecipeViewModel.isIngredientSelected() && !newRecipeViewModel.searchBoxClicked.value) {
+                    Box(Modifier.align(Alignment.CenterHorizontally))
+                    {
+                        DoneButton {
+                            recipesViewModel.insert(
+                                newRecipeViewModel.getRecipe(updateRecipeId!!),
+                                newRecipeViewModel.getIngredientsIdsAndQuantities()
+                            )
+                        }
                     }
                 }
             }
@@ -208,13 +219,21 @@ fun ClickableIngredientCard(ingredient: Ingredient, newRecipeViewModel: NewRecip
                         onClickLabel = "Clickable image",
                         onClick = {
                             newRecipeViewModel.selectedIngredientId.value = ingredient.id
-                            focusManager.clearFocus()
+                            newRecipeViewModel.grabFocus.value = true
+                            //focusManager.clearFocus()
                         }
                     ),
                 painter = if (ingredient.imageUri.isEmpty()) painterResource(R.drawable.image) else rememberImagePainter(ingredient.imageUri),
                 contentDescription = "ingredient image",
             )
             Text(text = ingredient.name)
+        }
+    }
+
+    SideEffect {
+        if (newRecipeViewModel.grabFocus.value){
+            newRecipeViewModel.focusRequester.value.requestFocus()
+            newRecipeViewModel.grabFocus.value = false
         }
     }
 }
@@ -288,17 +307,107 @@ fun StepsText(newRecipeViewModel: NewRecipeViewModel)
 @Composable
 fun ShowIngredientsWithQuantities(newRecipeViewModel: NewRecipeViewModel)
 {
-    for (ingredientWithQuantity in newRecipeViewModel.ingredientsList) {
-        Box(modifier = Modifier.padding(10.dp)) {
-            IngredientSmallCard(newRecipeViewModel, ingredientWithQuantity)
+    if (!newRecipeViewModel.isIngredientSelected() && !newRecipeViewModel.searchBoxClicked.value) {
+        for (ingredientWithQuantity in newRecipeViewModel.ingredientsList) {
+            Box(modifier = Modifier.padding(10.dp)) {
+                IngredientSmallCard(newRecipeViewModel, ingredientWithQuantity)
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text(
+                "ingredients: " + newRecipeViewModel.ingredientsCount.value.toString(),
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
         }
     }
+}
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Text(
-            "ingredients: " + newRecipeViewModel.ingredientsCount.value.toString(),
-            modifier = Modifier.align(Alignment.CenterStart)
+
+@Composable
+fun SearchView(state: MutableState<String>, newRecipeViewModel: NewRecipeViewModel) {
+    val focusManager = LocalFocusManager.current
+    val focus = remember { mutableStateOf(false) }
+    val inputService = LocalTextInputService.current
+
+    TextField(
+        value = state.value,
+        onValueChange = { value ->
+            state.value = value
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 15.dp, end = 15.dp, top = 15.dp, bottom = 0.dp)
+            .height(55.dp)
+            .border(2.dp, Orange, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .onFocusChanged {
+                if (focus.value != it.isFocused) {
+                    focus.value = it.isFocused
+                    if (!it.isFocused) {
+                        if (newRecipeViewModel.isIngredientSelected()) {
+                            newRecipeViewModel.searchBoxClicked.value = false
+                        }
+                        else {
+                            inputService?.hideSoftwareKeyboard()
+                        }
+                    } else {
+                        newRecipeViewModel.searchBoxClicked.value = true
+                    }
+                }
+            },
+        textStyle = TextStyle(fontSize = 15.sp),
+        label = {(Text(text = "ingredient", color = Orange))},
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(
+            onDone = {
+                focusManager.clearFocus()
+                focus.value = false
+            }),
+
+        leadingIcon = {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = "",
+                modifier = Modifier
+                    .padding(10.dp)
+                    .size(24.dp)
+            )
+        },
+        trailingIcon = {
+            if (state.value.isNotEmpty()) {
+                IconButton(
+                    onClick = {
+                        state.value = ""
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "",
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .size(24.dp)
+                    )
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(8.dp),
+        colors = TextFieldDefaults.textFieldColors(
+            cursorColor = Color.Gray,
+            leadingIconColor = Orange,
+            trailingIconColor = Orange,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent
         )
+    )
+
+    LaunchedEffect(focus.value) {
+        if (!focus.value) {
+            delay(100)
+            newRecipeViewModel.searchBoxClicked.value = false
+        }
     }
 }
 
@@ -308,10 +417,14 @@ fun ShowIngredientsWithSearch(
     newRecipeViewModel: NewRecipeViewModel,
     ingredientsViewModel: IngredientsViewModel)
 {
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .background(Cream)) {
-        SearchView(newRecipeViewModel.ingredientName)
+    if (!newRecipeViewModel.isIngredientSelected()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Cream)
+        ) {
+            SearchView(newRecipeViewModel.ingredientName, newRecipeViewModel)
+        }
     }
 
     Box(modifier = Modifier
@@ -359,7 +472,9 @@ fun RecipeCardDefault(
                         }
                     }
 
-                    Tabs(newRecipeViewModel)
+                    if (!newRecipeViewModel.searchBoxClicked.value) {
+                        Tabs(newRecipeViewModel)
+                    }
 
                     if (newRecipeViewModel.selectedTabIngredients()) {
                         ShowIngredientsWithSearch(newRecipeViewModel, ingredientsViewModel)
@@ -370,7 +485,8 @@ fun RecipeCardDefault(
             items(1) {
                 if (newRecipeViewModel.selectedTabIngredients()) {
                     ShowIngredientsWithQuantities(newRecipeViewModel)
-                } else {
+                }
+                else {
                     StepsText(newRecipeViewModel)
                 }
             } // items end
@@ -553,7 +669,9 @@ fun QuantityField(newRecipeViewModel: NewRecipeViewModel)
     TextField(
         modifier = Modifier
             .padding(10.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .focusRequester(newRecipeViewModel.focusRequester.value)
+        ,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(
             onDone = {
@@ -570,7 +688,7 @@ fun QuantityField(newRecipeViewModel: NewRecipeViewModel)
 @ExperimentalFoundationApi
 @Composable
 fun IngredientsList(newRecipeViewModel: NewRecipeViewModel, ingredientsViewModel: IngredientsViewModel) {
-    if (newRecipeViewModel.selectedIngredientId.value < ((0).toLong())) {
+    if (!newRecipeViewModel.isIngredientSelected()) {
         ScrollableRowIngredients(ingredientsViewModel, newRecipeViewModel)
     }
     else {
@@ -584,7 +702,11 @@ fun IngredientsList(newRecipeViewModel: NewRecipeViewModel, ingredientsViewModel
 
                 Column(modifier = Modifier.weight(1f)) {
                     QuantityField(newRecipeViewModel)
-                    
+
+                    val buttonPressed = remember { mutableStateOf(false) }
+                    val inputService = LocalTextInputService.current
+
+
                     OkCancelButtons(
                         okFun = {
                             newRecipeViewModel.addIngredient(
@@ -593,15 +715,24 @@ fun IngredientsList(newRecipeViewModel: NewRecipeViewModel, ingredientsViewModel
                                     newRecipeViewModel.ingredientQuantity.value
                                 )
                             )
-                            newRecipeViewModel.selectedIngredientId.value = -1
+                            buttonPressed.value = true
                             newRecipeViewModel.ingredientName.value = ""
                             newRecipeViewModel.ingredientsCount.value += 1
-                            newRecipeViewModel.ingredientQuantity.value = ""
                         },
                         cancelFun = {
-                            newRecipeViewModel.selectedIngredientId.value = -1
+                            buttonPressed.value = true
+                            newRecipeViewModel.ingredientName.value = ""
                         }
                     )
+
+                    LaunchedEffect(buttonPressed.value) {
+                        if (buttonPressed.value) {
+                            inputService?.hideSoftwareKeyboard()
+                            delay(100)
+                            newRecipeViewModel.selectedIngredientId.value = -1
+                            newRecipeViewModel.ingredientQuantity.value = ""
+                        }
+                    }
                 }
             }
         }
